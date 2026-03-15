@@ -8,8 +8,9 @@ import {
   IonFab, IonFabButton, IonSegment, IonSegmentButton, IonInput, IonBadge, ModalController, AlertController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { downloadOutline, createOutline, trashOutline, documentTextOutline, add } from 'ionicons/icons';
+import { downloadOutline, createOutline, trashOutline, documentTextOutline, add, logOutOutline } from 'ionicons/icons';
 import { GlucoseService } from '../services/glucose';
+import { AuthService } from '../services/auth.service';
 import { GlucoseRecord, GLUCOSE_CONTEXTS } from '../interfaces/glucose-record';
 import { BehaviorSubject, combineLatest, Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
@@ -123,10 +124,11 @@ export class HomePage implements OnInit {
 
   constructor(
     private glucoseService: GlucoseService,
+    private authService: AuthService,
     private modalCtrl: ModalController,
     private alertCtrl: AlertController
   ) {
-    addIcons({ downloadOutline, createOutline, trashOutline, documentTextOutline, add });
+    addIcons({ downloadOutline, createOutline, trashOutline, documentTextOutline, add, logOutOutline });
   }
 
   ngOnInit() {
@@ -143,6 +145,21 @@ export class HomePage implements OnInit {
             }]
         };
     });
+  }
+
+  async logout() {
+    const alert = await this.alertCtrl.create({
+      header: 'Cerrar Sesión',
+      message: '¿Estás seguro de que quieres salir?',
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { 
+          text: 'Salir', 
+          handler: () => this.authService.logout()
+        }
+      ]
+    });
+    await alert.present();
   }
 
   getContextLabel(value: string): string {

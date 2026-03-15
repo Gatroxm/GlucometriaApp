@@ -1,93 +1,85 @@
 import { Injectable } from '@angular/core';
-import { Storage } from '@ionic/storage-angular';
 import { BehaviorSubject, Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { map, tap } from 'rxjs/operators';
+import { ApiService } from '../api/api.service';
 import { GlucoseRecord } from '../interfaces/glucose-record';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import { environment } from '../../environments/environment';
 
-const STORAGE_KEY = 'glucose_records';
+import { Capacitor } from '@capacitor/core';
+import { AlertController } from '@ionic/angular/standalone';
 
 @Injectable({
   providedIn: 'root'
 })
 export class GlucoseService {
-  private _storage: Storage | null = null;
   private recordsSubject = new BehaviorSubject<GlucoseRecord[]>([]);
-
   public records$: Observable<GlucoseRecord[]> = this.recordsSubject.asObservable();
 
-  constructor(private storage: Storage) {
-    this.init();
-  }
-
-  async init() {
-    const storage = await this.storage.create();
-    this._storage = storage;
+  constructor(
+    private apiService: ApiService,
+    private alertCtrl: AlertController
+  ) {
     this.loadRecords();
   }
 
-  private async loadRecords() {
-    const records = (await this._storage?.get(STORAGE_KEY)) || [];
-    // Sort by timestamp descending (newest first)
-    records.sort((a: GlucoseRecord, b: GlucoseRecord) => b.timestamp - a.timestamp);
-    this.recordsSubject.next(records);
+  loadRecords() {
+    this.apiService.get<any[]>('glicemias').pipe(
+      map(data => data.map(item => this.mapToFrontend(item))),
+      tap(records => this.recordsSubject.next(records))
+    ).subscribe();
   }
 
   async addRecord(record: Omit<GlucoseRecord, 'id' | 'timestamp'>): Promise<void> {
-    const newRecord: GlucoseRecord = {
-      ...record,
-      id: crypto.randomUUID(),
-      timestamp: new Date(`${record.date}T${record.time}`).getTime()
-    };
-
-    const currentRecords = this.recordsSubject.value;
-    const updatedRecords = [newRecord, ...currentRecords];
-    updatedRecords.sort((a: GlucoseRecord, b: GlucoseRecord) => b.timestamp - a.timestamp);
-
-    if (this._storage) {
-        await this._storage.set(STORAGE_KEY, updatedRecords);
-    }
-    this.recordsSubject.next(updatedRecords);
+    const backendData = this.mapToBackend(record);
+    return this.apiService.post<any>('glicemias', backendData).pipe(
+      tap(() => this.loadRecords())
+    ).toPromise();
   }
 
-  async updateRecord(updatedRecord: GlucoseRecord): Promise<void> {
-    const currentRecords = this.recordsSubject.value;
-    const index = currentRecords.findIndex((r: GlucoseRecord) => r.id === updatedRecord.id);
-    
-    if (index > -1) {
-      updatedRecord.timestamp = new Date(`${updatedRecord.date}T${updatedRecord.time}`).getTime();
-      
-      currentRecords[index] = updatedRecord;
-      currentRecords.sort((a: GlucoseRecord, b: GlucoseRecord) => b.timestamp - a.timestamp);
-      
-      if (this._storage) {
-        await this._storage.set(STORAGE_KEY, currentRecords);
-      }
-      this.recordsSubject.next([...currentRecords]);
-    }
+  async updateRecord(record: GlucoseRecord): Promise<void> {
+    const backendData = this.mapToBackend(record);
+    return this.apiService.put<any>(`glicemias/${record.id}`, backendData).pipe(
+      tap(() => this.loadRecords())
+    ).toPromise();
   }
 
   async deleteRecord(id: string): Promise<void> {
-    const currentRecords = this.recordsSubject.value;
-    const updatedRecords = currentRecords.filter((r: GlucoseRecord) => r.id !== id);
-    
-    if (this._storage) {
-        await this._storage.set(STORAGE_KEY, updatedRecords);
-    }
-    this.recordsSubject.next(updatedRecords);
+    return this.apiService.delete<any>(`glicemias/${id}`).pipe(
+      tap(() => this.loadRecords())
+    ).toPromise();
+  }
+
+  private mapToFrontend(item: any): GlucoseRecord {
+    return {
+      id: item._id,
+      value: item.valor,
+      date: new Date(item.fecha).toISOString().split('T')[0],
+      time: item.hora,
+      context: item.tipo,
+      notes: item.notas,
+      timestamp: new Date(item.fecha).getTime()
+    };
+  }
+
+  private mapToBackend(record: any): any {
+    return {
+      valor: record.value,
+      fecha: record.date,
+      hora: record.time,
+      tipo: record.context,
+      notas: record.notes
+    };
   }
 
   getAverageGlucose(days: number = 7): Observable<number> {
     return this.records$.pipe(
       map((records: GlucoseRecord[]) => {
         if (!records.length) return 0;
-        
         const cutoffTime = new Date().getTime() - (days * 24 * 60 * 60 * 1000);
         const recentRecords = records.filter((r: GlucoseRecord) => r.timestamp >= cutoffTime);
-        
         if (!recentRecords.length) return 0;
-
         const sum = recentRecords.reduce((acc: number, curr: GlucoseRecord) => acc + curr.value, 0);
         return Math.round(sum / recentRecords.length);
       })
@@ -95,19 +87,63 @@ export class GlucoseService {
   }
 
   exportToExcel() {
-    const data = this.recordsSubject.value.map((record: GlucoseRecord) => ({
-      Fecha: record.date,
-      Hora: record.time,
-      'Valor (mg/dL)': record.value,
-      Contexto: record.context.replace('_', ' '),
-      Notas: record.notes || ''
-    }));
+    this.apiService.getBlob('reportes/glicemias/excel').subscribe({
+      next: async (blob) => {
+        const fileName = 'reporte_glicemias_' + new Date().getTime() + '.xlsx';
+        
+        if (Capacitor.isNativePlatform()) {
+          // Logic for mobile (requires @capacitor/filesystem and @capacitor/share)
+          this.downloadMobile(blob, fileName);
+        } else {
+          // Logic for browser
+          saveAs(blob, fileName);
+        }
+      },
+      error: async (err) => {
+        console.error('Error al descargar reporte', err);
+        const alert = await this.alertCtrl.create({
+          header: 'Error',
+          message: 'No se pudo generar el reporte. Intenta de nuevo más tarde.',
+          buttons: ['OK']
+        });
+        await alert.present();
+      }
+    });
+  }
 
-    const worksheet: XLSX.WorkSheet = XLSX.utils.json_to_sheet(data);
-    const workbook: XLSX.WorkBook = { Sheets: { 'Registros': worksheet }, SheetNames: ['Registros'] };
-    const excelBuffer: any = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-    
-    this.saveAsExcelFile(excelBuffer, 'registros_glucometria');
+  private async downloadMobile(blob: Blob, fileName: string) {
+    try {
+      // Dynamic import to avoid build errors if plugins are not installed yet
+      const { Filesystem, Directory } = await import('@capacitor/filesystem');
+      const { Share } = await import('@capacitor/share');
+
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      reader.onloadend = async () => {
+        const base64data = reader.result as string;
+        
+        const savedFile = await Filesystem.writeFile({
+          path: fileName,
+          data: base64data,
+          directory: Directory.Cache
+        });
+
+        await Share.share({
+          title: 'Reporte de Glicemias',
+          text: 'Aquí tienes tu reporte de glicemias.',
+          url: savedFile.uri,
+          dialogTitle: 'Compartir reporte'
+        });
+      };
+    } catch (e) {
+      console.error('Error en descarga móvil', e);
+      const alert = await this.alertCtrl.create({
+        header: 'Error en APK',
+        message: 'Para descargar el reporte en el APK, necesitas instalar @capacitor/filesystem y @capacitor/share.',
+        buttons: ['OK']
+      });
+      await alert.present();
+    }
   }
 
   private saveAsExcelFile(buffer: any, fileName: string): void {

@@ -1,0 +1,37 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-title>Iniciar Sesión</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <div class="login-container">
+    <div class="logo">
+      <ion-icon name="water-outline" color="primary"></ion-icon>
+      <h1>GlucoMeter</h1>
+    </div>
+
+    <form (ngSubmit)="login()">
+      <ion-item lines="full">
+        <ion-label position="floating">Correo Electrónico</ion-label>
+        <ion-input type="email" [(ngModel)]="credentials.email" name="email" required></ion-input>
+      </ion-item>
+
+      <ion-item lines="full">
+        <ion-label position="floating">Contraseña</ion-label>
+        <ion-input type="password" [(ngModel)]="credentials.password" name="password" required></ion-input>
+      </ion-item>
+
+      <div class="ion-padding-top">
+        <ion-button expand="block" type="submit" [disabled]="loading">
+          <ion-spinner *ngIf="loading" name="crescent"></ion-spinner>
+          <span *ngIf="!loading">Ingresar</span>
+        </ion-button>
+      </div>
+    </form>
+
+    <div class="ion-text-center ion-padding-top">
+      <p>¿No tienes cuenta? <a (click)="goToRegister()">Regístrate</a></p>
+    </div>
+  </div>
+</ion-content>

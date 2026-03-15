@@ -12,15 +12,20 @@ import { AppComponent } from './app/app.component';
 import { Drivers } from '@ionic/storage';
 import { IonicStorageModule } from '@ionic/storage-angular';
 
+import { provideHttpClient, withInterceptorsFromDi, HTTP_INTERCEPTORS } from '@angular/common/http';
+import { AuthInterceptor } from './app/interceptors/auth.interceptor';
+
 registerLocaleData(localeEs);
 
 bootstrapApplication(AppComponent, {
   providers: [
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
     { provide: LOCALE_ID, useValue: 'es-CO' },
+    { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true },
     provideIonicAngular(),
     provideRouter(routes, withPreloading(PreloadAllModules)),
     provideCharts(withDefaultRegisterables()),
+    provideHttpClient(withInterceptorsFromDi()),
     importProvidersFrom(IonicStorageModule.forRoot({
       name: '__glucometerdb',
       driverOrder: [Drivers.IndexedDB, Drivers.LocalStorage]
