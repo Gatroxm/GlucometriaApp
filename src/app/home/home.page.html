@@ -1,20 +1,207 @@
 <ion-header [translucent]="true">
-  <ion-toolbar>
-    <ion-title>
-      Blank
-    </ion-title>
+  <ion-toolbar color="primary">
+    <ion-title>Glucometría</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="exportToExcel()">
+        <ion-icon slot="icon-only" name="download-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
-<ion-content [fullscreen]="true">
+<ion-content [fullscreen]="true" class="ion-padding">
+  
   <ion-header collapse="condense">
     <ion-toolbar>
-      <ion-title size="large">Blank</ion-title>
+      <ion-title size="large">Glucometría</ion-title>
     </ion-toolbar>
   </ion-header>
 
-  <div id="container">
-    <strong>Ready to create an app?</strong>
-    <p>Start with Ionic <a target="_blank" rel="noopener noreferrer" href="https://ionicframework.com/docs/components">UI Components</a></p>
-  </div>
+  <!-- Dashboard Card -->
+  <ion-card class="dashboard-card">
+    <ion-card-header>
+      <ion-card-subtitle>Promedio (Últimos 7 días)</ion-card-subtitle>
+      <ion-card-title class="average-value">
+        {{ average$ | async }} <span class="unit">mg/dL</span>
+      </ion-card-title>
+    </ion-card-header>
+    <ion-card-content>
+      <canvas baseChart
+        [data]="lineChartData"
+        [options]="lineChartOptions"
+        [type]="'line'">
+      </canvas>
+    </ion-card-content>
+  </ion-card>
+
+  <ion-segment [(ngModel)]="viewMode" class="view-mode-segment">
+    <ion-segment-button value="grouped">
+      <ion-label>Por día</ion-label>
+    </ion-segment-button>
+    <ion-segment-button value="date">
+      <ion-label>Filtrar fecha</ion-label>
+    </ion-segment-button>
+    <ion-segment-button value="range">
+      <ion-label>Rango</ion-label>
+    </ion-segment-button>
+  </ion-segment>
+
+  <ng-container *ngIf="viewMode === 'grouped'">
+    <ion-list-header>
+      <ion-label>Historial agrupado por día</ion-label>
+    </ion-list-header>
+
+    <ng-container *ngIf="groupedRecords$ | async as groupedRecords">
+      <ion-list *ngFor="let group of groupedRecords">
+        <ion-list-header>
+          <ion-label>{{ group.date | date:'fullDate' }}</ion-label>
+        </ion-list-header>
+
+        <ion-item-sliding *ngFor="let record of group.records">
+          <ion-item [class]="getRiskItemClass(record.value)">
+            <ion-label>
+              <h2 [class]="'glucose-value glucose-value-' + getRiskColor(record.value)">{{ record.value }} mg/dL</h2>
+              <p>{{ record.date | date:'shortDate' }} - {{ record.time }}</p>
+              <p class="context-label">{{ getContextLabel(record.context) }}</p>
+              <ion-badge [color]="getRiskColor(record.value)">{{ getRiskLabel(record.value) }}</ion-badge>
+            </ion-label>
+            <ion-note slot="end" color="medium" *ngIf="record.notes">
+              <ion-icon name="document-text-outline"></ion-icon>
+            </ion-note>
+          </ion-item>
+
+          <ion-item-options side="end">
+            <ion-item-option color="primary" (click)="openModal(record)">
+              <ion-icon slot="icon-only" name="create-outline"></ion-icon>
+            </ion-item-option>
+            <ion-item-option color="danger" (click)="deleteRecord(record.id)">
+              <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+            </ion-item-option>
+          </ion-item-options>
+        </ion-item-sliding>
+      </ion-list>
+
+      <ion-item *ngIf="groupedRecords.length === 0">
+        <ion-label class="ion-text-center">
+          <p>No hay registros aún.</p>
+          <p>¡Toca el botón + para agregar uno!</p>
+        </ion-label>
+      </ion-item>
+    </ng-container>
+  </ng-container>
+
+  <ng-container *ngIf="viewMode === 'date'">
+    <ion-list-header>
+      <ion-label>Filtrar por fecha</ion-label>
+    </ion-list-header>
+
+    <ion-item>
+      <ion-input
+        label="Selecciona fecha"
+        labelPlacement="stacked"
+        type="date"
+        [value]="selectedDate"
+        (ionInput)="onDateChange($event)">
+      </ion-input>
+    </ion-item>
+
+    <ion-list>
+      <ng-container *ngIf="filteredRecordsByDate$ | async as filteredRecords">
+        <ion-item-sliding *ngFor="let record of filteredRecords">
+          <ion-item [class]="getRiskItemClass(record.value)">
+            <ion-label>
+              <h2 [class]="'glucose-value glucose-value-' + getRiskColor(record.value)">{{ record.value }} mg/dL</h2>
+              <p>{{ record.date | date:'shortDate' }} - {{ record.time }}</p>
+              <p class="context-label">{{ getContextLabel(record.context) }}</p>
+              <ion-badge [color]="getRiskColor(record.value)">{{ getRiskLabel(record.value) }}</ion-badge>
+            </ion-label>
+            <ion-note slot="end" color="medium" *ngIf="record.notes">
+              <ion-icon name="document-text-outline"></ion-icon>
+            </ion-note>
+          </ion-item>
+
+          <ion-item-options side="end">
+            <ion-item-option color="primary" (click)="openModal(record)">
+              <ion-icon slot="icon-only" name="create-outline"></ion-icon>
+            </ion-item-option>
+            <ion-item-option color="danger" (click)="deleteRecord(record.id)">
+              <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+            </ion-item-option>
+          </ion-item-options>
+        </ion-item-sliding>
+
+        <ion-item *ngIf="filteredRecords.length === 0">
+          <ion-label class="ion-text-center">
+            <p>No hay registros para la fecha seleccionada.</p>
+          </ion-label>
+        </ion-item>
+      </ng-container>
+    </ion-list>
+  </ng-container>
+
+  <ng-container *ngIf="viewMode === 'range'">
+    <ion-list-header>
+      <ion-label>Filtrar por rango de fechas</ion-label>
+    </ion-list-header>
+
+    <ion-item>
+      <ion-input
+        label="Desde"
+        labelPlacement="stacked"
+        type="date"
+        [value]="rangeStartDate"
+        (ionInput)="onRangeStartDateChange($event)">
+      </ion-input>
+    </ion-item>
+
+    <ion-item>
+      <ion-input
+        label="Hasta"
+        labelPlacement="stacked"
+        type="date"
+        [value]="rangeEndDate"
+        (ionInput)="onRangeEndDateChange($event)">
+      </ion-input>
+    </ion-item>
+
+    <ion-list>
+      <ng-container *ngIf="filteredRecordsByRange$ | async as rangeRecords">
+        <ion-item-sliding *ngFor="let record of rangeRecords">
+          <ion-item [class]="getRiskItemClass(record.value)">
+            <ion-label>
+              <h2 [class]="'glucose-value glucose-value-' + getRiskColor(record.value)">{{ record.value }} mg/dL</h2>
+              <p>{{ record.date | date:'shortDate' }} - {{ record.time }}</p>
+              <p class="context-label">{{ getContextLabel(record.context) }}</p>
+              <ion-badge [color]="getRiskColor(record.value)">{{ getRiskLabel(record.value) }}</ion-badge>
+            </ion-label>
+            <ion-note slot="end" color="medium" *ngIf="record.notes">
+              <ion-icon name="document-text-outline"></ion-icon>
+            </ion-note>
+          </ion-item>
+
+          <ion-item-options side="end">
+            <ion-item-option color="primary" (click)="openModal(record)">
+              <ion-icon slot="icon-only" name="create-outline"></ion-icon>
+            </ion-item-option>
+            <ion-item-option color="danger" (click)="deleteRecord(record.id)">
+              <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+            </ion-item-option>
+          </ion-item-options>
+        </ion-item-sliding>
+
+        <ion-item *ngIf="rangeRecords.length === 0">
+          <ion-label class="ion-text-center">
+            <p>No hay registros en este rango.</p>
+          </ion-label>
+        </ion-item>
+      </ng-container>
+    </ion-list>
+  </ng-container>
+
+  <ion-fab vertical="bottom" horizontal="end" slot="fixed">
+    <ion-fab-button (click)="openModal()">
+      <ion-icon name="add"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+
 </ion-content>

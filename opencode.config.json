@@ -1,0 +1,45 @@
+{
+  "project": "glucometerApp",
+  "description": "Ionic + Angular mobile app to record and export blood glucose readings.",
+  "framework": "Ionic/Angular",
+  "language": "TypeScript",
+  "provider": "openai",
+  "model": "gpt-4.1",
+  "apiKey": "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",
+  "packageManager": "npm",
+  "scripts": {
+    "build": "npm run build",
+    "test": "npm test -- --watch=false",
+    "lint": "npm run lint"
+  },
+  "entry": "src/main.ts",
+  "importantFiles": [
+    "src/app/services/glucose.ts",
+    "src/app/interfaces/glucose-record.ts",
+    "src/app/home/home.page.ts",
+    "src/app/app.component.ts",
+    "src/app/app.routes.ts",
+    "src/main.ts",
+    "angular.json",
+    "package.json"
+  ],
+  "dataModel": {
+    "glucoseRecordInterface": "src/app/interfaces/glucose-record.ts",
+    "storageKeyConstant": "STORAGE_KEY in src/app/services/glucose.ts"
+  },
+  "services": {
+    "glucoseService": "src/app/services/glucose.ts — manages Storage, BehaviorSubject stream, CRUD and Excel export"
+  },
+  "observations": [
+    "Service uses Ionic Storage and a BehaviorSubject to expose records via records$.",
+    "Records are stored sorted by timestamp (newest first).",
+    "Each record created with crypto.randomUUID() and timestamp computed from date+time.",
+    "Export uses xlsx + file-saver to generate .xlsx file with Spanish column headers."
+  ],
+  "recommendedNextSteps": [
+    "Run: npm install && npm run build then npm test to verify current setup.",
+    "Add e2e tests covering add/update/delete and export behaviors.",
+    "Consider input validation for date/time and numeric glucose values, and timezone handling for timestamps."
+  ],
+  "contact": "owner"
+}
