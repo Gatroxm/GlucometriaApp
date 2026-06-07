@@ -8,13 +8,13 @@ import {
   IonFab, IonFabButton, IonSegment, IonSegmentButton, IonInput, IonBadge, ModalController, AlertController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { downloadOutline, createOutline, trashOutline, documentTextOutline, add, logOutOutline } from 'ionicons/icons';
-import { GlucoseService } from '../services/glucose';
+import { downloadOutline, createOutline, trashOutline, documentTextOutline, add, logOutOutline, fitnessOutline } from 'ionicons/icons';
+import { GlicemiaService } from '../services/glicemia.service'; // Asegura la ruta de tu nuevo servicio
 import { AuthService } from '../services/auth.service';
 import { GlucoseRecord, GLUCOSE_CONTEXTS } from '../interfaces/glucose-record';
 import { BehaviorSubject, combineLatest, Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { GlucoseModalComponent } from '../app/home/glucose-modal/glucose-modal.component';
+import { GlucoseModalComponent } from './glucose-modal/glucose-modal.component';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartConfiguration, ChartOptions } from 'chart.js';
 
@@ -45,6 +45,7 @@ export class HomePage implements OnInit {
   selectedDate = this.getTodayDate();
   rangeStartDate = this.getRelativeDate(-6);
   rangeEndDate = this.getTodayDate();
+  
   private selectedDateSubject = new BehaviorSubject<string>(this.selectedDate);
   private rangeStartDateSubject = new BehaviorSubject<string>(this.rangeStartDate);
   private rangeEndDateSubject = new BehaviorSubject<string>(this.rangeEndDate);
@@ -54,17 +55,19 @@ export class HomePage implements OnInit {
       const groups = new Map<string, GlucoseRecord[]>();
 
       for (const record of records) {
-        if (!groups.has(record.date)) {
-          groups.set(record.date, []);
+        // Extraemos solo la parte YYYY-MM-DD para agrupar por días de manera limpia
+        const dateKey = record.fecha.split('T')[0];
+        if (!groups.has(dateKey)) {
+          groups.set(dateKey, []);
         }
-        groups.get(record.date)?.push(record);
+        groups.get(dateKey)?.push(record);
       }
 
       return [...groups.entries()]
         .sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime())
         .map(([date, grouped]) => ({
           date,
-          records: grouped.sort((a, b) => b.timestamp - a.timestamp)
+          records: grouped.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
         }));
     })
   );
@@ -75,8 +78,8 @@ export class HomePage implements OnInit {
   ]).pipe(
     map(([records, date]) =>
       records
-        .filter((record: GlucoseRecord) => record.date === date)
-        .sort((a, b) => b.timestamp - a.timestamp)
+        .filter((record: GlucoseRecord) => record.fecha.startsWith(date))
+        .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
     )
   );
 
@@ -87,8 +90,11 @@ export class HomePage implements OnInit {
   ]).pipe(
     map(([records, startDate, endDate]) =>
       records
-        .filter((record: GlucoseRecord) => record.date >= startDate && record.date <= endDate)
-        .sort((a, b) => b.timestamp - a.timestamp)
+        .filter((record: GlucoseRecord) => {
+          const rDate = record.fecha.split('T')[0];
+          return rDate >= startDate && rDate <= endDate;
+        })
+        .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
     )
   );
   
@@ -109,41 +115,40 @@ export class HomePage implements OnInit {
   public lineChartOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: {
-        legend: { display: false }
-    },
+    plugins: { legend: { display: false } },
     scales: {
-        x: { display: false },
-        y: { 
-            beginAtZero: false,
-            suggestedMin: 60,
-            suggestedMax: 180
-        }
+      x: { display: false },
+      y: { 
+        beginAtZero: false,
+        suggestedMin: 60,
+        suggestedMax: 180
+      }
     }
   };
 
   constructor(
-    private glucoseService: GlucoseService,
+    private glucoseService: GlicemiaService, // Inyectamos el nuevo servicio optimizado
     private authService: AuthService,
     private modalCtrl: ModalController,
     private alertCtrl: AlertController
   ) {
-    addIcons({ downloadOutline, createOutline, trashOutline, documentTextOutline, add, logOutOutline });
+    addIcons({ downloadOutline, createOutline, trashOutline, documentTextOutline, add, logOutOutline, fitnessOutline });
   }
 
   ngOnInit() {
-    // Update chart when records change
     this.records$.subscribe(records => {
-        // Take last 10 records for the chart, reverse to show chronological order left-to-right
-        const chartRecords = [...records].slice(0, 10).reverse();
-        
-        this.lineChartData = {
-            labels: chartRecords.map(r => `${r.date.slice(5)} ${r.time}`),
-            datasets: [{
-                ...this.lineChartData.datasets[0],
-                data: chartRecords.map(r => r.value)
-            }]
-        };
+      const chartRecords = [...records].slice(0, 10).reverse();
+      
+      this.lineChartData = {
+        labels: chartRecords.map(r => {
+          const dateObj = new Date(r.fecha);
+          return `${dateObj.getMonth() + 1}/${dateObj.getDate()} ${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+        }),
+        datasets: [{
+          ...this.lineChartData.datasets[0],
+          data: chartRecords.map(r => r.valor)
+        }]
+      };
     });
   }
 
@@ -153,10 +158,7 @@ export class HomePage implements OnInit {
       message: '¿Estás seguro de que quieres salir?',
       buttons: [
         { text: 'Cancelar', role: 'cancel' },
-        { 
-          text: 'Salir', 
-          handler: () => this.authService.logout()
-        }
+        { text: 'Salir', handler: () => this.authService.logout() }
       ]
     });
     await alert.present();
@@ -170,15 +172,13 @@ export class HomePage implements OnInit {
   async openModal(record?: GlucoseRecord) {
     const modal = await this.modalCtrl.create({
       component: GlucoseModalComponent,
-      componentProps: {
-        record: record
-      }
+      componentProps: { record: record }
     });
-
     await modal.present();
   }
 
-  async deleteRecord(id: string) {
+  async deleteRecord(id?: string) {
+    if (!id) return;
     const alert = await this.alertCtrl.create({
         header: 'Confirmar',
         message: '¿Estás seguro de que quieres eliminar este registro?',
@@ -195,7 +195,8 @@ export class HomePage implements OnInit {
   }
 
   exportToExcel() {
-    this.glucoseService.exportToExcel();
+    // Si tienes este método en tu servicio viejo, asegúrate de migrarlo al nuevo
+    // this.glucoseService.exportToExcel();
   }
 
   onDateChange(event: CustomEvent) {
@@ -206,9 +207,7 @@ export class HomePage implements OnInit {
 
   onRangeStartDateChange(event: CustomEvent) {
     const value = event.detail.value;
-    if (!value) {
-      return;
-    }
+    if (!value) return;
 
     this.rangeStartDate = value;
     if (this.rangeStartDate > this.rangeEndDate) {
@@ -220,9 +219,7 @@ export class HomePage implements OnInit {
 
   onRangeEndDateChange(event: CustomEvent) {
     const value = event.detail.value;
-    if (!value) {
-      return;
-    }
+    if (!value) return;
 
     this.rangeEndDate = value;
     if (this.rangeEndDate < this.rangeStartDate) {
@@ -242,27 +239,19 @@ export class HomePage implements OnInit {
     return date.toISOString().split('T')[0];
   }
 
-  getRiskLabel(value: number): string {
-    if (value <= 70) {
-      return 'Bajo';
-    }
-    if (value >= 180) {
-      return 'Alto';
-    }
+  getRiskLabel(valor: number): string {
+    if (valor <= 70) return 'Bajo';
+    if (valor >= 180) return 'Alto';
     return 'Normal';
   }
 
-  getRiskColor(value: number): 'warning' | 'danger' | 'success' {
-    if (value <= 70) {
-      return 'warning';
-    }
-    if (value >= 180) {
-      return 'danger';
-    }
+  getRiskColor(valor: number): 'warning' | 'danger' | 'success' {
+    if (valor <= 70) return 'warning';
+    if (valor >= 180) return 'danger';
     return 'success';
   }
 
-  getRiskItemClass(value: number): string {
-    return `risk-item-${this.getRiskColor(value)}`;
+  getRiskItemClass(valor: number): string {
+    return `risk-item-${this.getRiskColor(valor)}`;
   }
 }

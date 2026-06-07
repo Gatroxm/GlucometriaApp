@@ -1,27 +1,30 @@
-export interface GlucoseRecord {
-  id: string;
-  value: number; // mg/dL
-  date: string; // ISO format (YYYY-MM-DD)
-  time: string; // ISO format (HH:mm)
-  context: string;
-  notes?: string;
-  timestamp: number; // For sorting
+export interface InsulinaRecord {
+  unidades: number;
+  tipoInsulina: 'rapida' | 'basal' | 'ninguna';
+  ratioUtilizado: number;
 }
 
+export interface GlucoseRecord {
+  _id?: string;               // MongoDB usa _id en lugar de id
+  user?: string;              // ID del usuario propietario
+  valor: number;             // Cambiado de 'value' a 'valor' para hacer match con el backend
+  tipo: 'ayunas' | 'pre_comida' | 'post_comida' | 'pre_entreno' | 'post_entreno' | 'madrugada' | 'casual'; // Cambiado de context a tipo
+  carbohidratos: number;      // Gramos contados con la gramera
+  insulina: InsulinaRecord;   // Objeto anidado de insulina
+  hizoEjercicio: boolean;     // Flag para cruzar con el gimnasio/natación
+  notes?: string;             // Notas opcionales
+  fecha: string;              // ISO string completo (reemplaza date, time y timestamp)
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// Stript de visualización simplificado para los formularios de Ionic/Angular
 export const GLUCOSE_CONTEXTS = [
-  { value: 'ayunas', label: 'En ayunas' },
-  { value: 'pre_comida', label: 'Antes de comida' },
-  { value: 'post_comida', label: '2h después de comida' },
-  { value: 'antes_almuerzo', label: 'Antes de almuerzo' },
-  { value: 'despues_almuerzo', label: '2h después de almuerzo' },
-  { value: 'antes_cena', label: 'Antes de cenar' },
-  { value: 'despues_cena', label: '2h después de cenar' },
-  { value: 'antes_desayuno', label: 'Antes de desayuno' },
-  { value: 'despues_desayuno', label: '2h después de desayuno' },
-  { value: 'actividad_fisica', label: 'Actividad física' },
-  { value: 'malestar', label: 'Con malestar/síntomas' },
-  { value: 'control_rutina', label: 'Control de rutina' },
-  { value: 'antes_dormir', label: 'Antes de dormir' },
-  { value: 'madrugada', label: 'Madrugada' },
-  { value: 'otro', label: 'Otro' }
+  { value: 'ayunas', label: 'En ayunas (Al despertar)' },
+  { value: 'pre_comida', label: 'Antes de comer (Desayuno/Almuerzo/Cena)' },
+  { value: 'post_comida', label: '2h después de comer' },
+  { value: 'pre_entreno', label: 'Antes de entrenar (Fierros/Piscina)' },
+  { value: 'post_entreno', label: 'Al terminar de entrenar' },
+  { value: 'madrugada', label: 'Madrugada (Control 3:00 AM)' },
+  { value: 'casual', label: 'Control casual / Rutina' }
 ];

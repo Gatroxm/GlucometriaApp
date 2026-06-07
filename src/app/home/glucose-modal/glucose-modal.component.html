@@ -1,0 +1,96 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="cancel()">Cancelar</ion-button>
+    </ion-buttons>
+    <ion-title>{{ record ? 'Editar Registro' : 'Nuevo Registro' }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="confirm()" [strong]="true">Guardar</ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+
+  <ion-item>
+    <ion-input label="Nivel de Glucosa (mg/dL)" labelPlacement="floating" type="number" [(ngModel)]="formData.valor"
+      placeholder="Ej: 133" required>
+    </ion-input>
+  </ion-item>
+
+  <ion-item>
+    <ion-select label="Momento del Control" labelPlacement="floating" [(ngModel)]="formData.tipo">
+      <ion-select-option *ngFor="let c of contexts" [value]="c.value">
+        {{ c.label }}
+      </ion-select-option>
+    </ion-select>
+  </ion-item>
+
+  <ion-item>
+    <ion-input label="Fecha" labelPlacement="stacked" type="date" [(ngModel)]="formData.dateOnly">
+    </ion-input>
+  </ion-item>
+
+  <ion-item>
+    <ion-input label="Hora" labelPlacement="stacked" type="time" [(ngModel)]="formData.timeOnly">
+    </ion-input>
+  </ion-item>
+
+  <ion-item-group>
+    <ion-list-header color="light">
+      <ion-label>Alimentación e Insulina</ion-label>
+    </ion-list-header>
+
+    <ion-item>
+      <ion-input label="Carbohidratos (Gramos de la gramera)" labelPlacement="floating" type="number"
+        [(ngModel)]="formData.carbohidratos" placeholder="Ej: 64">
+      </ion-input>
+    </ion-item>
+
+    <ion-item>
+      <ion-select label="Tipo de Insulina" labelPlacement="floating" [(ngModel)]="formData.tipoInsulina">
+        <ion-select-option value="ninguna">Ninguna</ion-select-option>
+        <ion-select-option value="rapida">Rápida (Bolo)</ion-select-option>
+        <ion-select-option value="basal">Basal (Lenta)</ion-select-option>
+      </ion-select>
+    </ion-item>
+
+    <ng-container *ngIf="formData.tipoInsulina !== 'ninguna'">
+      <ion-item>
+        <ion-input label="Unidades Aplicadas" labelPlacement="floating" type="number"
+          [(ngModel)]="formData.insulinaUnidades" placeholder="Ej: 10">
+        </ion-input>
+      </ion-item>
+
+      <ion-item *ngIf="formData.tipoInsulina === 'rapida'">
+        <ion-input label="Ratio Utilizado (RIP)" labelPlacement="floating" type="number"
+          [(ngModel)]="formData.ratioUtilizado" placeholder="Ej: 8">
+        </ion-input>
+      </ion-item>
+    </ng-container>
+  </ion-item-group>
+
+  <ion-item-group>
+    <ion-list-header color="light">
+      <ion-label>Actividad Física</ion-label>
+    </ion-list-header>
+
+    <ion-item>
+      <ion-toggle [(ngModel)]="formData.hizoEjercicio" color="tertiary">
+        ¿Hizo ejercicio o natación?
+      </ion-toggle>
+    </ion-item>
+  </ion-item-group>
+
+  <ion-item-group>
+    <ion-list-header color="light">
+      <ion-label>Observaciones</ion-label>
+    </ion-list-header>
+    <ion-item>
+      <ion-textarea label="Notas adicionales" labelPlacement="floating" [(ngModel)]="formData.notes"
+        placeholder="Ej: Almuerzo con costillas y caldo de auyama, entreno de pecho" rows="3">
+      </ion-textarea>
+    </ion-item>
+  </ion-item-group>
+
+</ion-content>
