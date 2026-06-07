@@ -127,7 +127,7 @@ export class HomePage implements OnInit {
   };
 
   constructor(
-    private glucoseService: GlicemiaService, // Inyectamos el nuevo servicio optimizado
+    private glucoseService: GlicemiaService,
     private authService: AuthService,
     private modalCtrl: ModalController,
     private alertCtrl: AlertController
@@ -187,7 +187,16 @@ export class HomePage implements OnInit {
             { 
                 text: 'Eliminar', 
                 role: 'destructive',
-                handler: () => this.glucoseService.deleteRecord(id)
+                handler: () => {
+                  this.glucoseService.deleteRecord(id).subscribe({
+                    next: () => console.log('Borrado exitoso en el backend'),
+                    error: (err) => this.alertCtrl.create({
+                      header: 'Error',
+                      message: 'Error al borrar el registro: ' + err.error,
+                      buttons: ['OK']
+                    })
+                  });
+                }
             }
         ]
     });
@@ -195,8 +204,7 @@ export class HomePage implements OnInit {
   }
 
   exportToExcel() {
-    // Si tienes este método en tu servicio viejo, asegúrate de migrarlo al nuevo
-    // this.glucoseService.exportToExcel();
+    this.glucoseService.exportToExcel();
   }
 
   onDateChange(event: CustomEvent) {
